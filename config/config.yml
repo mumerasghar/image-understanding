@@ -1,0 +1,6 @@
+DATASET_NAME: 'Flicker8k_Dataset/'
+DATASET_DIR: './Dataset/Flicker8k_Dataset/'
+CAP_FILE: './Dataset/captions.pickle'
+IMG_NAME: './Dataset/img_name.pickle'
+BATCH_SIZE: 64
+SHUFFLE: True

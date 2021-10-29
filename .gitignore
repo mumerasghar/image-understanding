@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+Dataset/*
+Dataset/
+checkpoints/
+venv
+.idea
+weights/*
+pre_trained_weights/*
+tuple.dump
