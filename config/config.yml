@@ -1,6 +1,41 @@
-DATASET_NAME: 'Flicker8k_Dataset/'
-DATASET_DIR: './Dataset/Flicker8k_Dataset/'
-CAP_FILE: './Dataset/captions.pickle'
-IMG_NAME: './Dataset/img_name.pickle'
-BATCH_SIZE: 64
-SHUFFLE: True
+COCO:
+  CAP_FILE: "./Dataset/COCO/captions.pickle"
+  IMG_NAME: "./Dataset/COCO/img_name.pickle"
+  IMG_PATH: "./Dataset/COCO/extracted/train2014/"
+  TXT_PATH: "./Dataset/COCO/annotations/captions_train2014.json"
+  k_INFERENCE: "./Dataset/COCO/extracted/val2014/"
+  DATASET_NAME: "COCO"
+
+COCO_RCNN:
+  DATASET_NAME: "COCO"
+  CAP_FILE: "./Dataset/COCO/captions.pickle"
+  IMG_NAME: "./Dataset/COCO/img_name.pickle"
+  IMG_PATH: "./Dataset/COCO/rcnn_features/train/"
+  TXT_PATH: "./Dataset/COCO/annotations/captions_train2014.json"
+  F_IMG_PATH: "./Dataset/COCO/extracted/train2014/"
+  k_INFERENCE: "./Dataset/COCO/rcnn_features/val/"
+  F_K_INFERENCE: "./Dataset/COCO/extracted/val2014/"
+
+FLICKER:
+  DATASET_NAME: "Flicker"
+  CAP_FILE: "./Dataset/Flicker/captions.pickle"
+  IMG_NAME: "./Dataset/Flicker/img_name.pickle"
+  IMG_PATH: "./Dataset/Flicker/Flicker8k_Dataset/"
+  TXT_PATH: "./Dataset/Flicker/Flickr8k.token.txt"
+
+PARAMS:
+  DFF: 2048
+  LR_MUL: 2
+  EPOCHS: 30
+  D_MODEL: 512
+  LOGS_DIR: "./logs"
+  SAVE_DIR: "./checkpoints"
+  SAVE_MODE: "all" # it can be "all" or "best"
+  NUM_HEADS: 8
+  DROP_RATE: 0.1
+  BATCH_SIZE: 64
+  NUM_LAYERS: 4
+  WARMUP_STEP: 2000
+  TENSOR_BOARD: True
+  DATASET_SIZE: 40000
+  MIN_OCCURRENCES: 6
