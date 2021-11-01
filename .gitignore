@@ -1,7 +1,7 @@
 __pycache__
 *.pyc
 Dataset/*
-Dataset/
+Dataset
 checkpoints/
 venv
 .idea
