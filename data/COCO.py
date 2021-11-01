@@ -2,22 +2,14 @@ import os
 import json
 import pandas as pd
 import pickle5 as pickle
-
+from utils import *
 from .TokenizeData import Tokenize
 
 
-def max_length(_captions):
-    _max = 0
-    for i in _captions:
-        _len = len(i.split(' '))
-        if _len > _max:
-            _max = _len
-    return _max
-
-
-class COCO(Tokenize):
+class COCO:
     def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg, d_limiter=400000):
 
+        super().__init__()
         self.img_pth = img_pth
         self.txt_pth = txt_pth
         self.cap_file = cap_file
@@ -25,10 +17,7 @@ class COCO(Tokenize):
 
         self.d_limiter = d_limiter
         self.tokenizer = lambda s: s.split()
-        self._read_data()
-
-        super(COCO, self).__init__(self.img_name_vector, self.train_captions, self.tokenizer,
-                                   self.max_length, cfg)
+        self.max_length = self._read_data()
 
     def _read_data(self):
         if os.path.isfile(self.cap_file) and os.path.isfile(self.img_name):
@@ -49,7 +38,7 @@ class COCO(Tokenize):
             self.train_captions = train_captions[:self.d_limiter]
             self.img_name_vector = img_name_vector[:self.d_limiter]
 
-        self.max_length = max_length(self.train_captions)
+        return max_length(self.train_captions)
 
     @staticmethod
     def copy_sub_data(a):

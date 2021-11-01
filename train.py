@@ -3,7 +3,7 @@ import yaml
 from torch.utils.data import DataLoader
 
 from Models import Transformer, ScheduledOptimizer
-from data import dataset
+from data import Data
 import torch
 import os
 from tqdm import tqdm
@@ -123,7 +123,7 @@ def train(model, train_data, val_data, optimizer, device, cfg, data):
     def print_performances(header, ppl, accu, start_time, lr):
         elapse = (time.time() - start_time) / 60
         print(f"""  - {header:12} ppl: {ppl: 8.5f}, accuracy: {accu:3.3f},
-             lr: {lr:8.5f}, elapse: {elapse:3.3f} min, lr{lr}""")
+            lr: {lr:8.5f}, elapse: {elapse:3.3f} min, lr{lr}""")
 
     valid_losses = []
     for epoch_i in range(cfg["EPOCHS"]):
@@ -137,37 +137,32 @@ def train(model, train_data, val_data, optimizer, device, cfg, data):
         lr = optimizer._optimizer.param_groups[0]['lr']
         print_performances('Training', train_ppl, train_accu, start, lr)
 
-        # Evaluating model
-        # start = time.time()
-        # valid_loss, valid_accu = eval_epoch(model, val_data, device, cfg)
-        # valid_ppl = math.exp(min(valid_loss, 100))
-        # print_performances('Validation', valid_ppl, valid_accu, start, lr)
-        #
-        # valid_losses += [valid_loss]
+        start = time.time()
+        valid_loss, valid_accu = eval_epoch(model, val_data, device, cfg)
+        valid_ppl = math.exp(min(valid_loss, 100))
+        print_performances('Validation', valid_ppl, valid_accu, start, lr)
 
-        # checkpoint = {'epoch': epoch_i, 'settings': cfg, 'model': model.state_dict()}
+        valid_losses += [valid_loss]
 
-        # if cfg["SAVE_MODE"] == 'all':
-        #     model_name = 'model_accu_{accu:3.3f}.chkpt'.format(accu=100 * valid_accu)
-        #     torch.save(checkpoint, model_name)
-        # elif cfg["SAVE_MODE"] == 'best':
-        #     model_name = 'model.chkpt'
-        #     if valid_loss <= min(valid_losses):
-        #         torch.save(checkpoint, os.path.join(cfg["SAVE_DIR"], model_name))
-        #         print('    - [Info] The checkpoint file has been updated.')
-        #
-        # with open(log_train_file, 'a') as log_tf, open(log_valid_file, 'a') as log_vf:
-        #     log_tf.write('{epoch},{loss: 8.5f},{ppl: 8.5f},{accu:3.3f}\n'.format(
-        #         epoch=epoch_i, loss=train_loss,
-        #         ppl=train_ppl, accu=100 * train_accu))
-        #     log_vf.write('{epoch},{loss: 8.5f},{ppl: 8.5f},{accu:3.3f}\n'.format(
-        #         epoch=epoch_i, loss=valid_loss,
-        #         ppl=valid_ppl, accu=100 * valid_accu))
-        #
-        # if cfg["TENSOR_BOARD"]:
-        #     tb_writer.add_scalars('ppl', {'train': train_ppl, 'val': valid_ppl}, epoch_i)
-        #     tb_writer.add_scalars('accuracy', {'train': train_accu * 100, 'val': valid_accu * 100}, epoch_i)
-        #     tb_writer.add_scalar('learning_rate', lr, epoch_i)
+        checkpoint = {'epoch': epoch_i, 'settings': cfg, 'model': model.state_dict()}
+
+        if cfg["SAVE_MODE"] == 'all':
+            model_name = f'model_accu_{100 * valid_accu:3.3f}.chkpt'
+            torch.save(checkpoint, model_name)
+        elif cfg["SAVE_MODE"] == 'best':
+            model_name = 'model.chkpt'
+            if valid_loss <= min(valid_losses):
+                torch.save(checkpoint, os.path.join(cfg["SAVE_DIR"], model_name))
+                print('    - [Info] The checkpoint file has been updated.')
+
+        with open(log_train_file, 'a') as log_tf, open(log_valid_file, 'a') as log_vf:
+            log_tf.write(f'{epoch_i},{train_loss: 8.5f},{train_ppl: 8.5f},{100 * train_accu:3.3f}\n')
+            log_vf.write(f'{epoch_i},{valid_loss: 8.5f},{valid_ppl: 8.5f},{100 * valid_accu:3.3f}\n')
+
+        if cfg["TENSOR_BOARD"]:
+            tb_writer.add_scalars('ppl', {'train': train_ppl, 'val': valid_ppl}, epoch_i)
+            tb_writer.add_scalars('accuracy', {'train': train_accu * 100, 'val': valid_accu * 100}, epoch_i)
+            tb_writer.add_scalar('learning_rate', lr, epoch_i)
 
 
 def main():
@@ -177,21 +172,22 @@ def main():
         cfg = {**cfg[DATASET], **cfg["PARAMS"]}
 
     paths = {
-        "image_path": cfg['IMG_PATH'],
-        "text_path": cfg["TXT_PATH"],
-        "cap_file": cfg["CAP_FILE"],
-        "img_name": cfg["IMG_NAME"],
-        "dataset": cfg["DATASET_NAME"],
-        "cfg": cfg
+        "_img_path": cfg['IMG_PATH'],
+        "_text_path": cfg["TXT_PATH"],
+        "_cap_file": cfg["CAP_FILE"],
+        "_img_name": cfg["IMG_NAME"],
+        "_cfg": cfg
     }
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    data = dataset(**paths)
-    training_data = DataLoader(data, cfg['BATCH_SIZE'], shuffle=True)
+    data = Data(**paths)
+    val_data, train_data = data.get_data
+    training_data = DataLoader(train_data, cfg['BATCH_SIZE'], shuffle=True)
+    val_data = DataLoader(val_data, cfg['BATCH_SIZE'], shuffle=True)
 
     transformer = Transformer(
-        data.encoder.vocab_size,
+        data.tokenize.encoder.vocab_size,
         trg_pad_idx=0,
         trg_emb_prj_weight_sharing=True,
         d_k=64, d_v=64,
@@ -205,7 +201,7 @@ def main():
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
-    train(transformer, training_data, None, optimizer, device, cfg, data)
+    train(transformer, training_data, val_data, optimizer, device, cfg, data)
 
 
 if __name__ == '__main__':
