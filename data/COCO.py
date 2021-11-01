@@ -7,7 +7,7 @@ from .TokenizeData import Tokenize
 
 
 class COCO:
-    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg, d_limiter=400000):
+    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg, d_limiter=40000):
 
         super().__init__()
         self.img_pth = img_pth

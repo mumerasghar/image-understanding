@@ -8,6 +8,7 @@ import torch.optim as optim
 import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from inference import karpathy_inference
 
 from Models import Transformer, ScheduledOptimizer
 from data import Data
@@ -141,7 +142,7 @@ def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
 
 
 def main():
-    DATASET = "FLICKER"
+    DATASET = "COCO"
     with open('./config/config.yml', 'r') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
         cfg = {**cfg[DATASET], **cfg["PARAMS"]}
@@ -177,7 +178,8 @@ def main():
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
-    train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
+    # train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
+    karpathy_inference(tokenizer, transformer, cfg)
 
 
 if __name__ == '__main__':
