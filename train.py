@@ -1,28 +1,20 @@
+import math
+import os
+import time
+
+import torch
+import torch.nn.functional as F
 import torch.optim as optim
 import yaml
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from Models import Transformer, ScheduledOptimizer
 from data import Data
-import torch
-import os
-from tqdm import tqdm
-import time
-import math
-from torch.nn import NLLLoss
-import torch.nn.functional as F
 
-
-# def calc_loss(real, pred):
-#     mask = tf.math.logical_not(tf.math.equal(real, 0))
-#     loss_ = loss_object(real, pred)
-#
-#     mask = tf.cast(mask, dtype=loss_.dtype)
-#     loss_ *= mask
-#     return tf.reduce_sum(loss_) / tf.reduce_sum(mask)
 
 def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
-    ''' Calculate cross entropy loss, apply label smoothing if needed. '''
+    """ Calculate cross entropy loss, apply label smoothing if needed. """
 
     if smoothing:
         gold = gold.contiguous().view(-1)
@@ -64,48 +56,37 @@ def train_epoch(model, training_data, optimizer, device):
 
         tq.set_description(f'Loss {loss.item()}')
         total_loss += loss.item()
-        break
 
     return total_loss, train_accuracy
-    # backward and update parameters
-    #     loss, n_correct, n_word = cal_performance(
-    #         pred, gold, opt.trg_pad_idx, smoothing=smoothing)
-    #     loss.backward()
-    #     optimizer.step_and_update_lr()
-    #
-    #     # note keeping
-    #     n_word_total += n_word
-    #     n_word_correct += n_correct
-    #     total_loss += loss.item()
-    #
-    # loss_per_word = total_loss / n_word_total
-    # accuracy = n_word_correct / n_word_total
-    # return loss_per_word, accuracy
 
 
-def eval_epoch(model, validation_data, device, opt):
+def eval_epoch(model, data, tokenizer, device):
     """ Epoch operation in evaluation phase """
 
     model.eval()
-    total_loss, val_accuracy = 0, 0
-
-    desc = '  - (Validation) '
+    total_loss = 0
     with torch.no_grad():
-        for img_tensor, target, img_name in tqdm(validation_data, mininterval=2, desc=desc, leave=False):
-            src_seq = img_tensor.to(device)
-            target_inp = target[:, :-1].contiguous().to(device)
-            target_real = target[:, 1:].contiguous().to(device)
+        img_tensor, target, img_name = next(iter(data))
+        src_seq = img_tensor.to(device)
 
-            pred = model(src_seq, target_inp)
-            loss = cal_loss(pred.permute((0, 2, 1)), target_real, 0)
-            loss.backward()
+        target_inp = target[:, :-1].contiguous().to(device)
 
-            total_loss += loss.item()
+        pred = model(src_seq, target_inp)
+        seq_output = torch.argmax(pred, -1)
+        seq_output = seq_output.view(-1)
 
-    return total_loss, val_accuracy
+        with open("result.txt", "a") as f:
+            f.write(f"{tokenizer.encoder.decode(seq_output)}\n")
+
+    return total_loss, 0
 
 
-def train(model, train_data, val_data, optimizer, device, cfg, data):
+def print_performances(header, ppl, accu, start_time, _lr):
+    elapse = (time.time() - start_time) / 60
+    print(f'\t- {header:12} ppl: {ppl: 8.5f}, accuracy: {accu:3.3f},lr: {_lr:8.5f}, elapse: {elapse:3.3f} min')
+
+
+def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
     if cfg["TENSOR_BOARD"]:
         print("[+] Using Tensorboard")
         from torch.utils.tensorboard import SummaryWriter
@@ -120,11 +101,6 @@ def train(model, train_data, val_data, optimizer, device, cfg, data):
         log_tf.write('epoch,loss,ppl,accuracy\n')
         log_vf.write('epoch,loss,ppl,accuracy\n')
 
-    def print_performances(header, ppl, accu, start_time, lr):
-        elapse = (time.time() - start_time) / 60
-        print(f"""  - {header:12} ppl: {ppl: 8.5f}, accuracy: {accu:3.3f},
-            lr: {lr:8.5f}, elapse: {elapse:3.3f} min, lr{lr}""")
-
     valid_losses = []
     for epoch_i in range(cfg["EPOCHS"]):
         print(f'[ Epoch {epoch_i}]')
@@ -138,12 +114,11 @@ def train(model, train_data, val_data, optimizer, device, cfg, data):
         print_performances('Training', train_ppl, train_accu, start, lr)
 
         start = time.time()
-        valid_loss, valid_accu = eval_epoch(model, val_data, device, cfg)
+        valid_loss, valid_accu = eval_epoch(model, val_data, tokenizer, device)
         valid_ppl = math.exp(min(valid_loss, 100))
         print_performances('Validation', valid_ppl, valid_accu, start, lr)
 
         valid_losses += [valid_loss]
-
         checkpoint = {'epoch': epoch_i, 'settings': cfg, 'model': model.state_dict()}
 
         if cfg["SAVE_MODE"] == 'all':
@@ -183,8 +158,9 @@ def main():
 
     data = Data(**paths)
     val_data, train_data = data.get_data
+    tokenizer = data.tokenize
     training_data = DataLoader(train_data, cfg['BATCH_SIZE'], shuffle=True)
-    val_data = DataLoader(val_data, cfg['BATCH_SIZE'], shuffle=True)
+    val_data = DataLoader(val_data, 1, shuffle=True)
 
     transformer = Transformer(
         data.tokenize.encoder.vocab_size,
@@ -201,7 +177,7 @@ def main():
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
-    train(transformer, training_data, val_data, optimizer, device, cfg, data)
+    train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
 
 
 if __name__ == '__main__':

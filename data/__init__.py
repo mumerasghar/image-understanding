@@ -41,7 +41,7 @@ class Data(Dataset):
         #                     self.cfg)
         self.tokenize = Tokenize(f_data.train_captions, f_data.max_length, self.cfg)
         train_name, val_name, train_cap, val_cap = train_test_split(f_data.img_name_vector, self.tokenize.encoded_data,
-                                                                    test_size=0.1, random_state=0)
+                                                                    test_size=0.01, random_state=0)
         train_dataset = CreateDataset(train_name, train_cap)
         val_dataset = CreateDataset(train_name, train_cap)
         return train_dataset, val_dataset
