@@ -10,6 +10,9 @@ pre_trained_weights/*
 tuple.dump
 https://github.com/jadore801120/attention-is-all-you-need-pytorch/blob/132907dd272e2cc92e3c10e6c4e783a87ff8893d/transformer/SubLayers.py#L9
 temp
+tensorboard
+logs
+checkpoints
 
 #install command on server
 #pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html

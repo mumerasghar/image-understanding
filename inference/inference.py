@@ -25,7 +25,7 @@ def read_file(path):
 
 
 def append_to_list(id, name):
-    word = tokenizer.index_word[int(id[0])]
+    word = tokenizer.encoder.decode([int(id[0])])
     if name in results.keys():
         if results[name][len(results[name]) - 1] != '<end>':
             results[name].append(word)
@@ -43,15 +43,18 @@ def i_map_func(img_name):
     return img_tensor, img_name, f_img_tensor
 
 
-def evaluate(image, names, tokenize, transformer):
+def evaluate(image, names, tokenize, transformer, device):
     global tokenizer
     tokenizer = tokenize
     start_token = tokenizer.encoder.encode("<start>")
     end_token = tokenizer.encoder.encode("<end>")
     decoder_input = [start_token]
     decoder_input = np.repeat(decoder_input, repeats=image.shape[0])
-    output = np.expand_dims(decoder_input, axis=-1)  # tokens
+    output = torch.from_numpy(np.expand_dims(decoder_input, axis=-1)) # tokens
 
+    output = output.to(device)
+    image = image.to(device)
+    end_token = end_token.to(device)
     for i in range(40):
         predictions = transformer(image, output)
         predictions = predictions[:, -1:, :]
@@ -59,7 +62,10 @@ def evaluate(image, names, tokenize, transformer):
 
         if torch.all(predicted_id == end_token):
             break
-        l = list(map(append_to_list, predicted_id.numpy(), names.numpy()))
+        l_name = names.detach().numpy()
+        l_predicted_id = predicted_id.cpu().detach().numpy()
+
+        l = list(map(append_to_list, l_predicted_id, l_name))
         output = torch.cat((output, predicted_id), -1)
 
 
@@ -80,7 +86,7 @@ class InferenceDataset(Dataset):
         return self._load_features(self.img_name_vector[item])
 
 
-def karpathy_inference(tokenizer, transformer, cfg):
+def karpathy_inference(tokenizer, transformer,device, cfg):
     read_file(cfg['k_INFERENCE'])
     l = (dict2.keys())
     l = list(set(l))
@@ -89,7 +95,7 @@ def karpathy_inference(tokenizer, transformer, cfg):
 
     for batch_idx, (image, name) in enumerate(i_data):
         print(f'Karpathy split inference : {batch_idx}')
-        evaluate(image, name, tokenizer, transformer)
+        evaluate(image, name, tokenizer, transformer,device)
 
     finallist = []
     for i in results.keys():

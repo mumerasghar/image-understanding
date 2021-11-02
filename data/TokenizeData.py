@@ -18,4 +18,3 @@ class Tokenize:
 
         encoded_data = [self.encoder.encode(e) for e in train_captions]
         self.encoded_data = [pad_tensor(x, length=self.max_length) for x in encoded_data]
-        self.vocab_size = self.encoder.vocab_size

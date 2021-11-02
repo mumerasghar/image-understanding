@@ -3,11 +3,12 @@ import json
 import pandas as pd
 import pickle5 as pickle
 from utils import *
+from tqdm import tqdm
 from .TokenizeData import Tokenize
 
 
 class COCO:
-    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg, d_limiter=40000):
+    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg):
 
         super().__init__()
         self.img_pth = img_pth
@@ -15,8 +16,7 @@ class COCO:
         self.cap_file = cap_file
         self.img_name = img_name
 
-        self.d_limiter = d_limiter
-        self.tokenizer = lambda s: s.split()
+        self.d_limiter = cfg["DATASET_SIZE"]
         self.max_length = self._read_data()
 
     def _read_data(self):
@@ -65,6 +65,11 @@ class COCO:
             df.append(t)
 
         df = pd.DataFrame(df, columns=['filename', 'captions'])
+        
+        # tq = tqdm(df.captions.values, mininterval=2, leave=False)
+        # for i, cap in enumerate(tq):
+        #     new_cap = text_clean(cap)
+        #     df['captions'].iloc[i] = new_cap
 
         return df
 

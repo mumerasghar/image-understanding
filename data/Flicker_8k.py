@@ -4,7 +4,7 @@ from .TokenizeData import Tokenize
 
 
 class Flicker8k:
-    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg, d_limiter=40000):
+    def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg):
 
         super().__init__()
         self.img_pth = img_pth
@@ -12,7 +12,7 @@ class Flicker8k:
         self.cap_file = cap_file
         self.img_name = img_name
 
-        self.d_limiter = d_limiter
+        self.d_limiter = cfg["DATASET_SIZE"]
         self.max_length = self._read_data()
 
     def _read_data(self):

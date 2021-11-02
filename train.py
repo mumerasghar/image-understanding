@@ -77,7 +77,9 @@ def eval_epoch(model, data, tokenizer, device):
         seq_output = seq_output.view(-1)
 
         with open("result.txt", "a") as f:
-            f.write(f"{tokenizer.encoder.decode(seq_output)}\n")
+            f.write(
+                f"img_name:{img_name},\nreal_cap: {tokenizer.encoder.decode(target_inp)}\nfake: {tokenizer.encoder.decode(seq_output)}\n")
+            f.write("-" * 100 + "\n")
 
     return total_loss, 0
 
@@ -124,7 +126,7 @@ def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
 
         if cfg["SAVE_MODE"] == 'all':
             model_name = f'model_accu_{100 * valid_accu:3.3f}.chkpt'
-            torch.save(checkpoint, model_name)
+            torch.save(checkpoint, os.path.join(cfg["SAVE_DIR"], model_name))
         elif cfg["SAVE_MODE"] == 'best':
             model_name = 'model.chkpt'
             if valid_loss <= min(valid_losses):
@@ -142,7 +144,7 @@ def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
 
 
 def main():
-    DATASET = "COCO"
+    DATASET = "COCO_RCNN"
     with open('./config/config.yml', 'r') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
         cfg = {**cfg[DATASET], **cfg["PARAMS"]}
@@ -156,6 +158,7 @@ def main():
     }
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"[+] Using {device} for computation.")
 
     data = Data(**paths)
     val_data, train_data = data.get_data
@@ -168,18 +171,19 @@ def main():
         trg_pad_idx=0,
         trg_emb_prj_weight_sharing=True,
         d_k=64, d_v=64,
-        d_model=512,
-        dff=2048, n_layers=1,
-        n_head=8,
-        dropout=0.1
+        d_model=cfg["D_MODEL"],
+        dff=cfg["DFF"], 
+        n_layers=cfg["NUM_LAYERS"],
+        n_head=cfg["NUM_HEADS"],
+        dropout=cfg["DROP_RATE"]
     ).to(device)
 
     optimizer = ScheduledOptimizer(
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
-    # train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
-    karpathy_inference(tokenizer, transformer, cfg)
+    train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
+    karpathy_inference(tokenizer, transformer,device, cfg)
 
 
 if __name__ == '__main__':
