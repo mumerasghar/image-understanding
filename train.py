@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from inference import karpathy_inference
 
-from Models import Transformer, ScheduledOptimizer
+from Models import Transformer, ScheduledOptimizer, Critic
 from data import Data
 
 
@@ -78,7 +78,7 @@ def eval_epoch(model, data, tokenizer, device):
 
         with open("result.txt", "a") as f:
             f.write(
-                f"img_name:{img_name},\nreal_cap: {tokenizer.encoder.decode(target_inp)}\nfake: {tokenizer.encoder.decode(seq_output)}\n")
+                f"img_name:{img_name},\nreal_cap: {tokenizer.encoder.decode(target_inp[0])}\nfake: {tokenizer.encoder.decode(seq_output)}\n")
             f.write("-" * 100 + "\n")
 
     return total_loss, 0
@@ -177,10 +177,13 @@ def main():
         n_head=cfg["NUM_HEADS"],
         dropout=cfg["DROP_RATE"]
     ).to(device)
-
+    
+    
     optimizer = ScheduledOptimizer(
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
+
+
 
     train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
     karpathy_inference(tokenizer, transformer,device, cfg)
