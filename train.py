@@ -77,7 +77,9 @@ def eval_epoch(model, data, tokenizer, device):
         seq_output = seq_output.view(-1)
 
         with open("result.txt", "a") as f:
-            f.write(f"{tokenizer.encoder.decode(seq_output)}\n")
+            f.write(
+                f"img_name:{img_name},\nreal_cap: {tokenizer.encoder.decode(target_inp)}\nfake: {tokenizer.encoder.decode(seq_output)}\n")
+            f.write("-" * 100 + "\n")
 
     return total_loss, 0
 
@@ -178,7 +180,7 @@ def main():
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
-    # train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
+    train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
     karpathy_inference(tokenizer, transformer, cfg)
 
 
