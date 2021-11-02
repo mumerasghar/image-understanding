@@ -34,7 +34,29 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
     return loss
 
 
-def train_epoch(model, training_data, optimizer, device):
+def dis_loss(critic, f_cap, r_cap):
+    r_output = critic(r_cap)
+    r_d_loss = F.binary_cross_entropy(r_output, torch.ones_like(r_output))
+    r_d_loss = torch.sum(r_d_loss)
+
+    f_output = critic(f_cap)
+    f_d_loss = F.binary_cross_entropy(f_output, torch.zeros_like(f_output))
+    f_d_loss = torch.sum(f_d_loss)
+
+    return r_d_loss + f_d_loss
+
+
+def gen_loss(critic, tar_real, pred, r_cap):
+    loss = cal_loss(pred.permute((0, 2, 1)), tar_real, 0)
+
+    g_output = critic(r_cap)
+    g_loss = F.binary_cross_entropy(g_output, torch.ones_like(g_output))
+    g_loss = torch.sum(g_loss)
+
+    return loss, g_loss
+
+
+def train_epoch(model, critic, training_data, optimizer, optimizer_c, device):
     """ Epoch operation in training phase"""
     model.train()
     total_loss, train_accuracy = 0, 0
@@ -49,11 +71,23 @@ def train_epoch(model, training_data, optimizer, device):
 
         # forward prop
         optimizer.zero_grad()
+        optimizer_c.zero_grad()
 
         pred = model(src_seq, target_inp)
-        loss = cal_loss(pred.permute((0, 2, 1)), target_real, 0)
-        loss.backward()
-        optimizer.step_and_update_lr()
+        s_out = torch.argmax(pred, -1)
+
+        # loss = cal_loss(pred.permute((0, 2, 1)), target_real, 0)
+        # loss.backward()
+        # optimizer.step_and_update_lr()
+
+        l_critic = dis_loss(critic, s_out, target_real)
+        l_critic.backward()
+        optimizer_c.step()
+
+        loss, l_model = gen_loss(critic, target_real, pred, target_real)
+        l_model += loss
+        l_model.backward()
+        optimizer.zero_grad()
 
         tq.set_description(f'Loss {loss.item()}')
         total_loss += loss.item()
@@ -89,7 +123,7 @@ def print_performances(header, ppl, accu, start_time, _lr):
     print(f'\t- {header:12} ppl: {ppl: 8.5f}, accuracy: {accu:3.3f},lr: {_lr:8.5f}, elapse: {elapse:3.3f} min')
 
 
-def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
+def train(model, critic, train_data, val_data, optimizer, optimizer_c, tokenizer, device, cfg):
     if cfg["TENSOR_BOARD"]:
         print("[+] Using Tensorboard")
         from torch.utils.tensorboard import SummaryWriter
@@ -109,7 +143,7 @@ def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
         print(f'[ Epoch {epoch_i}]')
 
         start = time.time()
-        train_loss, train_accu = train_epoch(model, train_data, optimizer, device)
+        train_loss, train_accu = train_epoch(model, critic, train_data, optimizer, optimizer_c, device)
         train_ppl = math.exp(min(train_loss, 100))
 
         # Current learning loss
@@ -144,7 +178,7 @@ def train(model, train_data, val_data, optimizer, tokenizer, device, cfg):
 
 
 def main():
-    DATASET = "COCO_RCNN"
+    DATASET = "FLICKER"
     with open('./config/config.yml', 'r') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
         cfg = {**cfg[DATASET], **cfg["PARAMS"]}
@@ -172,22 +206,27 @@ def main():
         trg_emb_prj_weight_sharing=True,
         d_k=64, d_v=64,
         d_model=cfg["D_MODEL"],
-        dff=cfg["DFF"], 
+        dff=cfg["DFF"],
         n_layers=cfg["NUM_LAYERS"],
         n_head=cfg["NUM_HEADS"],
         dropout=cfg["DROP_RATE"]
     ).to(device)
-    
-    
-    
+
+    critic = Critic(
+        data.tokenize.max_length - 1,
+        cfg["NUM_HEADS"],
+        64, 64,
+        dropout=cfg["DROP_RATE"]
+    ).to(device)
+
     optimizer = ScheduledOptimizer(
         optim.Adam(transformer.parameters(), betas=(0.9, 0.98), eps=1e-09),
         cfg["LR_MUL"], cfg["D_MODEL"], cfg["WARMUP_STEP"])
 
+    optimizer_c = optim.Adam(critic.parameters(), betas=(0.9, 0.98), eps=1e-09, lr=0.0004)
 
-
-    train(transformer, training_data, val_data, optimizer, tokenizer, device, cfg)
-    karpathy_inference(tokenizer, transformer,device, cfg)
+    train(transformer, critic, training_data, val_data, optimizer, optimizer_c, tokenizer, device, cfg)
+    karpathy_inference(tokenizer, transformer, device, cfg)
 
 
 if __name__ == '__main__':

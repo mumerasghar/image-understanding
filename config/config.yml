@@ -33,7 +33,7 @@ PARAMS:
   SAVE_MODE: "all" # it can be "all" or "best"
   NUM_HEADS: 8
   DROP_RATE: 0.1
-  BATCH_SIZE: 128
+  BATCH_SIZE: 1
   NUM_LAYERS: 4
   WARMUP_STEP: 2000
   TENSOR_BOARD: True
