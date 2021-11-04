@@ -12,6 +12,7 @@ from inference import karpathy_inference
 
 from Models import Transformer, ScheduledOptimizer, Critic
 from data import Data
+from models.transformer import Transformer, MemoryAugmentedEncoder, MeshedDecoder, ScaledDotProductAttentionMemory
 
 
 def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
@@ -71,23 +72,23 @@ def train_epoch(model, critic, training_data, optimizer, optimizer_c, device):
 
         # forward prop
         optimizer.zero_grad()
-        optimizer_c.zero_grad()
+        # optimizer_c.zero_grad()
 
         pred = model(src_seq, target_inp)
         s_out = torch.argmax(pred, -1)
 
-        # loss = cal_loss(pred.permute((0, 2, 1)), target_real, 0)
-        # loss.backward()
-        # optimizer.step_and_update_lr()
+        loss = cal_loss(pred.permute((0, 2, 1)), target_real, 0)
+        loss.backward()
+        optimizer.step_and_update_lr()
 
-        l_critic = dis_loss(critic, s_out, target_real)
-        l_critic.backward()
-        optimizer_c.step()
-
-        loss, l_model = gen_loss(critic, target_real, pred, target_real)
-        l_model += loss
-        l_model.backward()
-        optimizer.zero_grad()
+        # l_critic = dis_loss(critic, s_out, target_real)
+        # l_critic.backward()
+        # optimizer_c.step()
+        #
+        # loss, l_model = gen_loss(critic, target_real, pred, target_real)
+        # l_model += loss
+        # l_model.backward()
+        # optimizer.zero_grad()
 
         tq.set_description(f'Loss {loss.item()}')
         total_loss += loss.item()
@@ -200,17 +201,22 @@ def main():
     training_data = DataLoader(train_data, cfg['BATCH_SIZE'], shuffle=True)
     val_data = DataLoader(val_data, 1, shuffle=True)
 
-    transformer = Transformer(
-        data.tokenize.encoder.vocab_size,
-        trg_pad_idx=0,
-        trg_emb_prj_weight_sharing=True,
-        d_k=64, d_v=64,
-        d_model=cfg["D_MODEL"],
-        dff=cfg["DFF"],
-        n_layers=cfg["NUM_LAYERS"],
-        n_head=cfg["NUM_HEADS"],
-        dropout=cfg["DROP_RATE"]
-    ).to(device)
+    # transformer = Transformer(
+    #     data.tokenize.encoder.vocab_size,
+    #     trg_pad_idx=0,
+    #     trg_emb_prj_weight_sharing=True,
+    #     d_k=64, d_v=64,
+    #     d_model=cfg["D_MODEL"],
+    #     dff=cfg["DFF"],
+    #     n_layers=cfg["NUM_LAYERS"],
+    #     n_head=cfg["NUM_HEADS"],
+    #     dropout=cfg["DROP_RATE"]
+    # ).to(device)
+
+    encoder = MemoryAugmentedEncoder(3, 0, attention_module=ScaledDotProductAttentionMemory,
+                                     attention_module_kwargs={'m': 40})
+    decoder = MeshedDecoder(tokenizer.encoder.vocab_size, 54, 3, tokenizer.encoder.token_to_index['<pad>'])
+    transformer = Transformer(tokenizer.encoder.token_to_index['<start>'], encoder, decoder).to(device)
 
     critic = Critic(
         data.tokenize.max_length - 1,

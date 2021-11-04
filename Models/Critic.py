@@ -34,7 +34,7 @@ class Critic(nn.Module):
         self.fnn = CriticFeedForward(d_model, d_model, 1, dropout)
 
     def forward(self, x):
-        x = x.to(torch.float32)
+        x = x.view(x.size(0), -1, x.size(1)).to(torch.float32)
         att1, _ = self.mha1(x, x, x)
         out1 = self.dropout1(att1)
 

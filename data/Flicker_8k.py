@@ -1,7 +1,7 @@
 import pickle5 as pickle
 from utils import *
 from .TokenizeData import Tokenize
-
+import os
 
 class Flicker8k:
     def __init__(self, img_pth, txt_pth, cap_file, img_name, cfg):
