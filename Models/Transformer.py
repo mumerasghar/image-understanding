@@ -25,7 +25,8 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
         position = torch.arange(max_len).unsqueeze(1).to(torch.float32)
-        div_term = torch.exp(torch.arange(0., d_model, 2) * (-math.log(10000.0) / d_model))
+        div_term = torch.exp(torch.arange(0., d_model, 2)
+                             * (-math.log(10000.0) / d_model))
         pe = torch.zeros(max_len, 1, d_model)
         pe[:, 0, 0::2] = torch.sin((position * div_term))
         pe[:, 0, 1::2] = torch.cos(position * div_term)
@@ -42,17 +43,17 @@ class Encoder(nn.Module):
             self, n_layers, n_head, d_k, d_v, d_model, dff, dropout=0.1):
         super().__init__()
 
-        self.src_word_emb = nn.Linear(dff, d_model, bias=False)
-        self.position_enc = PositionalEncoding(d_model)
+        self.d_model = d_model
         self.dropout = nn.Dropout(p=dropout)
+        self.position_enc = PositionalEncoding(d_model)
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
+        self.src_word_emb = nn.Linear(dff, d_model, bias=False)
 
+        # n_layers Encoder layer.
         self.enc_layers = nn.ModuleList([
             EncoderLayer(d_model, dff, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)]
         )
-
-        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-        self.d_model = d_model
 
     def forward(self, x, src_mask):
         """  """
@@ -73,15 +74,18 @@ class Decoder(nn.Module):
         super().__init__()
 
         self.d_model = d_model
-        self.embedding = nn.Embedding(n_trg_vocab, d_model, padding_idx=pad_idx)
+
+        self.embedding = nn.Embedding(
+            n_trg_vocab, d_model, padding_idx=pad_idx
+        )
+
+        self.dropout1 = nn.Dropout(p=dropout)
         self.position_enc = PositionalEncoding(d_model)
+        self.layer_norm1 = nn.LayerNorm(d_model, eps=1e-6)
 
         self.dec_layers = nn.ModuleList([
             DecoderLayer(d_model, dff, n_head, d_k, d_v, dropout=dropout) for _ in range(n_layers)
         ])
-
-        self.dropout1 = nn.Dropout(p=dropout)
-        self.layer_norm1 = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(self, trg_seq, trg_mask, enc_output, src_mask, return_attn=False):
 
@@ -136,8 +140,10 @@ class Transformer(nn.Module):
 
     def forward(self, inp, trg_seq):
 
-        trg_mask = get_pad_mask(trg_seq, self.trg_pad_idx) & get_subsequent_mask(trg_seq)
-        trg_mask = trg_mask.view(trg_mask.shape[0], -1, trg_mask.shape[1], trg_mask.shape[2])
+        trg_mask = get_pad_mask(
+            trg_seq, self.trg_pad_idx) & get_subsequent_mask(trg_seq)
+        trg_mask = trg_mask.view(
+            trg_mask.shape[0], -1, trg_mask.shape[1], trg_mask.shape[2])
 
         enc_output, *_ = self.encoder(inp, None)
         dec_output, *_ = self.decoder(trg_seq, trg_mask, enc_output, trg_mask)
